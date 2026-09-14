@@ -1,0 +1,70 @@
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f7f6;
+    color: #333;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+h1, h2 {
+    color: #2c3e50;
+}
+
+.stats-block {
+    background-color: #ffffff;
+    padding: 15px 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    border-left: 5px solid #3498db;
+}
+
+.stats-block h3 {
+    margin-top: 0;
+}
+
+.tickets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 15px;
+}
+
+.ticket-card {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    position: relative;
+    border: 1px solid #e1e8ed;
+}
+
+.ticket-info {
+    margin-top: 15px;
+    line-height: 1.5;
+}
+
+
+.badge {
+    display: inline-block;
+    padding: 5px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: bold;
+    color: white;
+}
+
+.badge.urgent {
+    background-color: #e74c3c;
+}
+
+.badge.medium {
+    background-color: #f39c12;
+}
+
+.badge.low {
+    background-color: #2ecc71;
+}
