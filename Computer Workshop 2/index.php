@@ -43,6 +43,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = $_POST['description'] ?? '';
     $priority = $_POST['priority'] ?? '';
     
+    if(mb_strlen(trim($subject)) < 3) {
+        $errors[] = "Назва має містити не менше 3 символів.";
+    }
+
     if(mb_strlen($description) < 15) {
         $errors[] = "Опис має містити не менше 15 символів.";
     }
