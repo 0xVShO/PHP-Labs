@@ -25,6 +25,12 @@ class HelpDesk {
             return $ticket->getStatus() === 'closed';
         });
     }
+
+    public function inProgressTickets(): array {
+        return array_filter($this->tickets, function($ticket) {
+            return $ticket->getStatus() === 'in_progress';
+        });
+    }
     
 }
 ?>

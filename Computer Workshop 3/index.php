@@ -15,21 +15,33 @@ $manager->addTicket(new UrgentTicket(
     'urgent',
     'open', 
     'Після ранкового оновлення системи зник доступ до мережі. Перезавантаження роутера не допомогло.', 
-    2
+    2,
+    '2026-10-17 18:00:00'
+));
+
+$manager->addTicket(new UrgentTicket(
+    'Помилка авторизації в CRM', 
+    'urgent',
+    'open', 
+    'Менеджери не можуть увійти в систему, викидає помилку 500 при спробі логіну.', 
+    5,
+    '2026-10-17 22:00:00'
 ));
 
 $manager->addTicket(new Ticket(
     'Оновити антивірус на бухгалтерському ПК', 
     'low', 
     'closed', 
-    'Потрібно встановити останню версію антивірусного ПЗ для відповідності новим політикам безпеки корпоративної мережі.'
+    'Потрібно встановити останню версію антивірусного ПЗ для відповідності новим політикам безпеки корпоративної мережі.',
+    '2026-10-16 09:30:00'
 ));
 
 $manager->addTicket(new Ticket(
     'Замінити зламану мишку', 
     'medium', 
-    'open', 
-    'У користувача в кабінеті 302 перестало працювати коліщатко на мишці. Прохання видати нову бездротову мишу.'
+    'in_progress', 
+    'У користувача в кабінеті 302 перестало працювати коліщатко на мишці. Прохання видати нову бездротову мишу.',
+    '2026-10-17 10:15:00'
 ));
 
 $manager->addTicket(new UrgentTicket(
@@ -37,14 +49,16 @@ $manager->addTicket(new UrgentTicket(
     'urgent', 
     'closed', 
     'Головний сервер БД ліг о 14:00. Помилка підключення timeout. Вже підняли з бекапу, але треба перевірити логи.',
-    1
+    1,
+    '2026-10-17 14:00:00'
 ));
 
 $manager->addTicket(new Ticket(
     'Надати доступ до спільної папки', 
     'medium', 
     'open', 
-    'Новий співробітник відділу маркетингу потребує доступу до папки "Promo_2026" на файловому сервері.'
+    'Новий співробітник відділу маркетингу потребує доступу до папки "Promo_2026" на файловому сервері.',
+    '2026-10-17 11:00:00'
 ));
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -68,9 +82,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $successMessage = "Тікет успішно створено!";
         
         if ($priority === 'urgent') {
-            $manager->addTicket(new UrgentTicket($subject, $priority, 'open', $description, 24));
+            $manager->addTicket(new UrgentTicket($subject, $priority, 'open', $description, 24, 'now'));
         } else {
-            $manager->addTicket(new Ticket($subject, $priority, 'open', $description));
+            $manager->addTicket(new Ticket($subject, $priority, 'open', $description, 'now'));
         }
         
         $subject = '';
@@ -80,10 +94,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $openTickets = $manager->openTickets();
-$closedTickets = $manager->closedTickets();
+$allTickets = array_merge(
+    $manager->findByPriority('urgent'),
+    $manager->findByPriority('medium'),
+    $manager->findByPriority('low')
+);
+
 $openTicketsCount = count($openTickets);
-$closedTicketsCount = count($closedTickets);
-$allTickets = array_merge($openTickets, $closedTickets);
+$closedTicketsCount = count(array_filter($allTickets, fn($t) => $t->getStatus() === 'closed'));
+$inProgressTicketsCount = count(array_filter($allTickets, fn($t) => $t->getStatus() === 'in_progress'));
 
 ?>
 <!DOCTYPE html>
@@ -101,6 +120,7 @@ $allTickets = array_merge($openTickets, $closedTickets);
         <div class="stats-block">
             <h3>Статистика системи:</h3>
             <p>Відкритих тікетів: <strong><?= $openTicketsCount ?></strong></p>
+            <p>В роботі: <strong><?= $inProgressTicketsCount ?></strong></p>
             <p>Закритих тікетів: <strong><?= $closedTicketsCount ?></strong></p>
         </div>
 
@@ -124,6 +144,7 @@ $allTickets = array_merge($openTickets, $closedTickets);
                     }
 
                     echo '<div class="ticket-card">';
+                    echo '<div class="ticket-status">' . formatStatus($ticket->getStatus()) . '</div>';
                     echo $priorityBadge;
                     echo '<div class="ticket-info">' . nl2br(htmlspecialchars($ticket->getInfo())) . '</div>';
                     

@@ -9,9 +9,17 @@ function formatStatus(string $status): string {
 }
 
 function isOverdue(Ticket $ticket): bool {
-    if ($ticket instanceof UrgentTicket) {
-        return $ticket->getSlaHours() <= 24; 
+    if (!($ticket instanceof UrgentTicket)) {
+        return false;
     }
-    return false;
+
+    if ($ticket->getStatus() === 'closed') {
+        return false;
+    }
+
+    $now = new DateTimeImmutable();
+    $hoursPassed = ($now->getTimestamp() - $ticket->getCreatedAt()->getTimestamp()) / 3600;
+
+    return $hoursPassed > $ticket->getSlaHours();
 }
 ?>
