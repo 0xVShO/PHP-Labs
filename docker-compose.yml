@@ -5,3 +5,33 @@ services:
       - "8080:80"
     volumes:
       - ./:/var/www/html
+    command: sh -c "docker-php-ext-install pdo pdo_mysql && apache2-foreground"
+    depends_on:
+      - db
+  db:
+    image: mysql:8.0
+    container_name: mysql_labs
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: php_workshop_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./tickets.sql:/docker-entrypoint-initdb.d/tickets.sql
+  
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin_labs
+    restart: always
+    ports:
+      - "8085:80"
+    environment:
+      PMA_HOST: db
+      PMA_USER: root
+      PMA_PASSWORD: root_password
+    depends_on:
+      - db
+  
+volumes:
+  mysql_data:
