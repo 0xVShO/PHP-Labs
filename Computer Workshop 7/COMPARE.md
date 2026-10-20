@@ -280,36 +280,36 @@ Server Hostname:        localhost
 Server Port:            80
 
 Document Path:          /Computer%20Workshop%207/api.php?resource=tickets
-Document Length:        1027 bytes
+Document Length:        1032 bytes
 
 Concurrency Level:      20
-Time taken for tests:   0.138 seconds
+Time taken for tests:   0.163 seconds
 Complete requests:      200
 Failed requests:        0
-Total transferred:      245800 bytes
-HTML transferred:       205400 bytes
-Requests per second:    1450.40 [#/sec] (mean)
-Time per request:       13.789 [ms] (mean)
-Time per request:       0.689 [ms] (mean, across all concurrent requests)
-Transfer rate:          1740.76 [Kbytes/sec] received
+Total transferred:      246800 bytes
+HTML transferred:       206400 bytes
+Requests per second:    1229.33 [#/sec] (mean)
+Time per request:       16.269 [ms] (mean)
+Time per request:       0.813 [ms] (mean, across all concurrent requests)
+Transfer rate:          1481.44 [Kbytes/sec] received
 
 Connection Times (ms)
               min  mean[+/-sd] median   max
-Connect:        0    0   0.1      0       1
-Processing:     5   12   3.4     12      23
-Waiting:        5   12   3.4     12      23
-Total:          5   13   3.4     12      24
+Connect:        0    0   0.2      0       1
+Processing:     7   13   2.5     13      26
+Waiting:        7   13   2.5     13      25
+Total:          8   13   2.5     13      26
 
 Percentage of the requests served within a certain time (ms)
-  50%     12
+  50%     13
   66%     14
-  75%     15
+  75%     14
   80%     15
   90%     16
-  95%     19
-  98%     22
-  99%     23
- 100%     24 (longest request)
+  95%     17
+  98%     20
+  99%     21
+ 100%     26 (longest request)
 ```
 
 ---
@@ -323,7 +323,6 @@ $startTime = microtime(true);
 $startMemory = memory_get_peak_usage(true);
 $sqlQueryCount = 0;
 
-// Функція-обгортка для підрахунку SQL-запитів
 function executeQuery($pdo, $sql, $params = []) {
     global $sqlQueryCount;
     $sqlQueryCount++;
@@ -340,7 +339,6 @@ require_once './classes/HelpDesk.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
-// Функція для відправки метрик у заголовках відповіді (щоб не ламати фронтенд)
 function sendDebugHeaders($source) {
     global $startTime, $startMemory, $sqlQueryCount;
     $timeMs = round((microtime(true) - $startTime) * 1000, 2);
@@ -365,16 +363,16 @@ if ($resource !== 'tickets') {
     exit;
 }
 
-if ($method === 'GET') {
-    if ($id) {
-        $id = (int)$id;
-        if ($id <= 0) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Некоректний ID.']);
-            exit;
-        }
-        try {
-            $stmt = executeQuery($pdo, "SELECT id, subject, description, priority, sla_hours, status FROM tickets WHERE id = :id", [':id' => $id]);
+try {
+    if ($method === 'GET') {
+        if ($id) {
+            $id = (int)$id;
+            if ($id <= 0) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Некоректний ID.']);
+                exit;
+            }
+            $stmt = executeQuery($pdo, "SELECT id, subject, description, priority, sla_hours, status, created_at FROM tickets WHERE id = :id", [':id' => $id]);
             $ticket = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($ticket) {
@@ -383,15 +381,11 @@ if ($method === 'GET') {
                 http_response_code(404);
                 echo json_encode(['error' => 'Тікет не знайдено.']);
             }
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Помилка БД: ' . $e->getMessage()]);
-        }
-    } else {
-        try {
+        } else {
             $statusFilter = $_GET['status'] ?? '';
             $cacheKey = $statusFilter ?: 'all';
             
+            // Перевірка кешу (Лаба 7)
             if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTTL) {
                 $cacheData = json_decode(file_get_contents($cacheFile), true);
                 if (isset($cacheData[$cacheKey])) {
@@ -450,132 +444,157 @@ if ($method === 'GET') {
             sendDebugHeaders('database');
             http_response_code(200);
             echo json_encode($response, JSON_UNESCAPED_UNICODE);
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Помилка сервера: ' . $e->getMessage()]);
         }
-    }
-} elseif ($method === 'POST') {
-    
-    if (file_exists($cacheFile)) {
-        unlink($cacheFile);
-    }
+    } elseif ($method === 'POST') {
+        
+        if (file_exists($cacheFile)) {
+            unlink($cacheFile);
+        }
 
-    if ($action === 'close') {
-        $ticketId = (int)$id;
-        if ($ticketId <= 0) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Некоректні дані.']);
-            exit;
-        }
-        try {
+        if ($action === 'close') {
+            $ticketId = (int)$id;
+            if ($ticketId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Некоректний ID.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("UPDATE tickets SET status = 'closed' WHERE id = :id");
             $stmt->execute([':id' => $ticketId]);
+            
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Тікет не знайдено.']);
+                exit;
+            }
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } elseif ($action === 'update_status') {
-        $ticketId = (int)$id;
-        $newStatus = $_POST['status'] ?? '';
+            
+        } elseif ($action === 'update_status') {
+            $ticketId = (int)$id;
+            $newStatus = $_POST['status'] ?? '';
 
-        if ($ticketId <= 0 || !in_array($newStatus, ['open', 'in_progress', 'closed'])) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Некоректні дані.']);
-            exit;
-        }
-        try {
+            if ($ticketId <= 0 || !is_string($newStatus) || !in_array($newStatus, ['open', 'in_progress', 'closed'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Некоректні дані.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("UPDATE tickets SET status = :status WHERE id = :id");
             $stmt->execute([':status' => $newStatus, ':id' => $ticketId]);
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } elseif ($action === 'update') {
-        $ticketId = (int)$id;
-        $subject = trim($_POST['subject'] ?? '');
-        $description = trim($_POST['description'] ?? '');
-        $priority = $_POST['priority'] ?? '';
-        $slaHours = (int)($_POST['sla_hours'] ?? 24);
-        $isUrgent = ($priority === 'high') ? 1 : 0;
-        $sla = ($priority === 'high') ? $slaHours : null;
+            
+        } elseif ($action === 'update') {
+            $ticketId = (int)$id;
+            $subjectRaw = $_POST['subject'] ?? '';
+            $descriptionRaw = $_POST['description'] ?? '';
+            $priorityRaw = $_POST['priority'] ?? '';
+            if (!is_string($subjectRaw) || !is_string($descriptionRaw) || !is_string($priorityRaw)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => ['Некоректний формат даних.']]);
+                exit;
+            }
 
-        $errors = [];
-        if ($ticketId <= 0) $errors[] = "Помилка ідентифікації тікета.";
-        if (mb_strlen($subject) < 3) $errors[] = "Назва має містити не менше 3 символів.";
-        if (mb_strlen($description) < 15) $errors[] = "Опис має містити не менше 15 символів.";
+            $subject = trim($subjectRaw);
+            $description = trim($descriptionRaw);
+            $priority = $priorityRaw;
+            $slaHours = isset($_POST['sla_hours']) ? (int)$_POST['sla_hours'] : 24;
+            $isUrgent = ($priority === 'high') ? 1 : 0;
+            $sla = ($priority === 'high') ? $slaHours : null;
 
-        if (!empty($errors)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'errors' => $errors]);
-            exit;
-        }
-        try {
+            $errors = [];
+            if ($ticketId <= 0) $errors[] = "Помилка ідентифікації тікета.";
+            if (mb_strlen($subject) < 3) $errors[] = "Назва має містити не менше 3 символів.";
+            if (mb_strlen($description) < 15 || mb_strlen($description) > 500) $errors[] = "Опис має бути від 15 до 500 символів.";
+            if (!in_array($priority, ['high', 'medium', 'low'])) $errors[] = "Недопустимий рівень пріоритету.";
+            if ($priority === 'high' && ($slaHours < 1 || $slaHours > 72)) $errors[] = "SLA має бути в межах від 1 до 72 годин.";
+
+            if (!empty($errors)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => $errors]);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("UPDATE tickets SET subject = :sub, description = :desc, priority = :pri, is_urgent = :is_urg, sla_hours = :sla WHERE id = :id");
             $stmt->execute([
-                ':sub' => $subject, ':desc' => $description, ':pri' => $priority, ':is_urg' => $isUrgent, ':sla' => $sla, ':id' => $ticketId
+                ':sub' => $subject,
+                ':desc' => $description,
+                ':pri' => $priority,
+                ':is_urg' => $isUrgent,
+                ':sla' => $sla,
+                ':id' => $ticketId
             ]);
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } elseif ($action === 'delete') {
-         $ticketId = (int)$id;
+            
+        } elseif ($action === 'delete') {
+            $ticketId = (int)$id;
 
-        if ($ticketId <= 0) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Некоректний ID тікета.']);
-            exit;
-        }
-        try {
+            if ($ticketId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Некоректний ID тікета.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("DELETE FROM tickets WHERE id = :id");
             $stmt->execute([':id' => $ticketId]);
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } else {
-        $manager = new HelpDesk($pdo);
-        $subject = $_POST['subject'] ?? '';
-        $description = $_POST['description'] ?? '';
-        $priority = $_POST['priority'] ?? '';
-        $slaHours = (int)($_POST['sla_hours'] ?? 24);
+            
+        } else {
+            $manager = new HelpDesk($pdo);
+            
+            $subjectRaw = $_POST['subject'] ?? '';
+            $descriptionRaw = $_POST['description'] ?? '';
+            $priorityRaw = $_POST['priority'] ?? '';
 
-        $errors = [];
-        if (mb_strlen(trim($subject)) < 3) $errors[] = "Назва має містити не менше 3 символів.";
-        if (mb_strlen($description) < 15) $errors[] = "Опис має містити не менше 15 символів.";
-        if (!in_array($priority, ['high', 'medium', 'low'])) $errors[] = "Недопустимий рівень пріоритету.";
+            if (!is_string($subjectRaw) || !is_string($descriptionRaw) || !is_string($priorityRaw)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => ['Некоректний формат даних.']]);
+                exit;
+            }
 
-        if (!empty($errors)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'errors' => $errors]);
-            exit;
-        }
-        try {
+            $subject = trim($subjectRaw);
+            $description = trim($descriptionRaw);
+            $priority = $priorityRaw;
+            $slaHours = isset($_POST['sla_hours']) ? (int)$_POST['sla_hours'] : 24;
+
+            $errors = [];
+            if (mb_strlen($subject) < 3) $errors[] = "Назва має містити не менше 3 символів.";
+            if (mb_strlen($description) < 15 || mb_strlen($description) > 500) $errors[] = "Опис має бути від 15 до 500 символів.";
+            if (!in_array($priority, ['high', 'medium', 'low'])) $errors[] = "Недопустимий рівень пріоритету.";
+            if ($priority === 'high' && ($slaHours < 1 || $slaHours > 72)) $errors[] = "SLA має бути в межах від 1 до 72 годин.";
+
+            if (!empty($errors)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => $errors]);
+                exit;
+            }
+            
             if ($priority === 'high') {
                 $ticket = new UrgentTicket($subject, $priority, 'open', $description, $slaHours, 'now');
             } else {
                 $ticket = new Ticket($subject, $priority, 'open', $description, 'now');
             }
+            
             $manager->addTicket($ticket);
+            
             http_response_code(201);
             echo json_encode(['success' => true, 'message' => 'Тікет успішно створено!']);
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
+    } else {
+        http_response_code(405);
+        echo json_encode(['error' => 'Метод не дозволено.']);
     }
-} else {
-    http_response_code(405);
-    echo json_encode(['error' => 'Метод не дозволено.']);
+} catch (Throwable $e) {
+    error_log("API Error: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Внутрішня помилка сервера. Спробуйте пізніше.']);
 }
 ```
 </details>
@@ -599,40 +618,40 @@ Server Hostname:        localhost
 Server Port:            80
 
 Document Path:          /Computer%20Workshop%207/api.php?resource=tickets
-Document Length:        1122 bytes
+Document Length:        35141 bytes
 
 Concurrency Level:      20
-Time taken for tests:   0.192 seconds
+Time taken for tests:   0.221 seconds
 Complete requests:      200
 Failed requests:        0
-Total transferred:      283160 bytes
-HTML transferred:       224400 bytes
-Requests per second:    1043.43 [#/sec] (mean)
-Time per request:       19.168 [ms] (mean)
-Time per request:       0.958 [ms] (mean, across all concurrent requests)
-Transfer rate:          1442.67 [Kbytes/sec] received
+Total transferred:      7082587 bytes
+HTML transferred:       7028200 bytes
+Requests per second:    905.17 [#/sec] (mean)
+Time per request:       22.095 [ms] (mean)
+Time per request:       1.105 [ms] (mean, across all concurrent requests)
+Transfer rate:          31303.58 [Kbytes/sec] received
 
 Connection Times (ms)
               min  mean[+/-sd] median   max
 Connect:        0    0   0.2      0       1
-Processing:    10   17   3.6     17      27
-Waiting:       10   17   3.6     17      27
-Total:         11   17   3.6     17      28
+Processing:     8   20   4.1     19      28
+Waiting:        8   19   4.1     19      28
+Total:          9   20   4.0     19      28
 
 Percentage of the requests served within a certain time (ms)
-  50%     17
-  66%     20
-  75%     20
-  80%     21
-  90%     22
-  95%     23
+  50%     19
+  66%     22
+  75%     23
+  80%     24
+  90%     25
+  95%     26
   98%     27
-  99%     28
+  99%     27
  100%     28 (longest request)
 ```
 
-- Час / RPS до: 1450 req/s, ~13.7 ms
-- Час / RPS після: 1043 req/s, ~19.1 ms
+- Час / RPS до: 1229.33 req/s, ~16.269 ms
+- Час / RPS після: 905.17 req/s, ~22.095 ms
 
 ### Висновок: 
-Оптимізація виявила ефект I/O вузького місця: на мікро-об'ємах даних файлове кешування (через специфіку змонтованих томів Docker на Windows) працює повільніше, ніж прямі звернення до MySQL в пам'яті. Також витрати на json_decode/json_encode файлу перекрили вигоду від усунення N+1 (JOIN), оскільки вибірка дуже мала.
+Бачимо, що хоч ми і виконали оптимізацію за допомогою кешування, швидшим залишився минула версія коду `api.php`. Це пов'язано з тим, що файлове кешування на невеликих об'ємах даних і за високого рівня паралельності створює "пляшкове горлишко" через дискові блокування і затримки I/O в Docker, в той час як MySQL ефективно утримує дані в оперативній пам'яті. Як варіант, можна б було використовувати спеціальні БД по типу Redis які б робили кешування в опертивну пам'ять.
