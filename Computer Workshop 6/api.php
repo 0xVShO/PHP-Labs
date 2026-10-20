@@ -55,15 +55,17 @@ if ($resource !== 'tickets') {
     exit;
 }
 
-if ($method === 'GET') {
-    if ($id) {
-        $id = (int)$id;
-        if ($id <= 0) {
-            http_response_code(400);
-            echo json_encode(['error' => 'Некоректний ID.']);
-            exit;
-        }
-        try {
+try {
+    if ($method === 'GET') {
+        
+        if ($id) {
+            $id = (int)$id;
+            if ($id <= 0) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Некоректний ID.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("SELECT id, subject, description, priority, sla_hours FROM tickets WHERE id = :id");
             $stmt->execute([':id' => $id]);
             $ticket = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -74,12 +76,8 @@ if ($method === 'GET') {
                 http_response_code(404);
                 echo json_encode(['error' => 'Тікет не знайдено.']);
             }
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Помилка БД: ' . $e->getMessage()]);
-        }
-    } else {
-        try {
+            
+        } else {
             $manager = new HelpDesk($pdo);
             $statusFilter = $_GET['status'] ?? '';
             
@@ -113,66 +111,78 @@ if ($method === 'GET') {
 
             http_response_code(200);
             echo json_encode($response, JSON_UNESCAPED_UNICODE);
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['error' => 'Помилка сервера: ' . $e->getMessage()]);
         }
-    }
-} elseif ($method === 'POST') {
-    if ($action === 'close') {
-        $ticketId = (int)$id;
-        if ($ticketId <= 0) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Некоректні дані.']);
-            exit;
-        }
-        try {
+        
+    } elseif ($method === 'POST') {
+        
+        if ($action === 'close') {
+            $ticketId = (int)$id;
+            if ($ticketId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Некоректний ID.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("UPDATE tickets SET status = 'closed' WHERE id = :id");
             $stmt->execute([':id' => $ticketId]);
+            
+            if ($stmt->rowCount() === 0) {
+                http_response_code(404);
+                echo json_encode(['success' => false, 'error' => 'Тікет не знайдено.']);
+                exit;
+            }
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } elseif ($action === 'update_status') {
-        $ticketId = (int)$id;
-        $newStatus = $_POST['status'] ?? '';
+            
+        } elseif ($action === 'update_status') {
+            $ticketId = (int)$id;
+            $newStatus = $_POST['status'] ?? '';
 
-        if ($ticketId <= 0 || !in_array($newStatus, ['open', 'in_progress', 'closed'])) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Некоректні дані.']);
-            exit;
-        }
-        try {
+            if ($ticketId <= 0 || !is_string($newStatus) || !in_array($newStatus, ['open', 'in_progress', 'closed'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Некоректні дані.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("UPDATE tickets SET status = :status WHERE id = :id");
             $stmt->execute([':status' => $newStatus, ':id' => $ticketId]);
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } elseif ($action === 'update') {
-        $ticketId = (int)$id;
-        $subject = trim($_POST['subject'] ?? '');
-        $description = trim($_POST['description'] ?? '');
-        $priority = $_POST['priority'] ?? '';
-        $slaHours = (int)($_POST['sla_hours'] ?? 24);
-        $isUrgent = ($priority === 'high') ? 1 : 0;
-        $sla = ($priority === 'high') ? $slaHours : null;
+            
+        } elseif ($action === 'update') {
+            $ticketId = (int)$id;
+            $subjectRaw = $_POST['subject'] ?? '';
+            $descriptionRaw = $_POST['description'] ?? '';
+            $priorityRaw = $_POST['priority'] ?? '';
 
-        $errors = [];
-        if ($ticketId <= 0) $errors[] = "Помилка ідентифікації тікета.";
-        if (mb_strlen($subject) < 3) $errors[] = "Назва має містити не менше 3 символів.";
-        if (mb_strlen($description) < 15) $errors[] = "Опис має містити не менше 15 символів.";
+            if (!is_string($subjectRaw) || !is_string($descriptionRaw) || !is_string($priorityRaw)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => ['Некоректний формат даних.']]);
+                exit;
+            }
 
-        if (!empty($errors)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'errors' => $errors]);
-            exit;
-        }
-        try {
+            $subject = trim($subjectRaw);
+            $description = trim($descriptionRaw);
+            $priority = $priorityRaw;
+            $slaHours = isset($_POST['sla_hours']) ? (int)$_POST['sla_hours'] : 24;
+            $isUrgent = ($priority === 'high') ? 1 : 0;
+            $sla = ($priority === 'high') ? $slaHours : null;
+
+            $errors = [];
+            if ($ticketId <= 0) $errors[] = "Помилка ідентифікації тікета.";
+            if (mb_strlen($subject) < 3) $errors[] = "Назва має містити не менше 3 символів.";
+            if (mb_strlen($description) < 15 || mb_strlen($description) > 500) $errors[] = "Опис має бути від 15 до 500 символів.";
+            if (!in_array($priority, ['high', 'medium', 'low'])) $errors[] = "Недопустимий рівень пріоритету.";
+            if ($priority === 'high' && ($slaHours < 1 || $slaHours > 72)) $errors[] = "SLA має бути в межах від 1 до 72 годин.";
+
+            if (!empty($errors)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => $errors]);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("UPDATE tickets SET subject = :sub, description = :desc, priority = :pri, is_urgent = :is_urg, sla_hours = :sla WHERE id = :id");
             $stmt->execute([
                 ':sub' => $subject,
@@ -182,67 +192,73 @@ if ($method === 'GET') {
                 ':sla' => $sla,
                 ':id' => $ticketId
             ]);
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } elseif ($action === 'delete') {
-         $ticketId = (int)$id;
+            
+        } elseif ($action === 'delete') {
+            $ticketId = (int)$id;
 
-        if ($ticketId <= 0) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'error' => 'Некоректний ID тікета.']);
-            exit;
-        }
-        try {
+            if ($ticketId <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'error' => 'Некоректний ID тікета.']);
+                exit;
+            }
+            
             $stmt = $pdo->prepare("DELETE FROM tickets WHERE id = :id");
             $stmt->execute([':id' => $ticketId]);
+            
             http_response_code(200);
             echo json_encode(['success' => true]);
-        } catch (PDOException $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-        }
-    } else {
-        $manager = new HelpDesk($pdo);
-        $subject = $_POST['subject'] ?? '';
-        $description = $_POST['description'] ?? '';
-        $priority = $_POST['priority'] ?? '';
-        $slaHours = (int)($_POST['sla_hours'] ?? 24);
+            
+        } else {
+            // Додавання (створення) тікета
+            $manager = new HelpDesk($pdo);
+            
+            $subjectRaw = $_POST['subject'] ?? '';
+            $descriptionRaw = $_POST['description'] ?? '';
+            $priorityRaw = $_POST['priority'] ?? '';
 
-        $errors = [];
+            if (!is_string($subjectRaw) || !is_string($descriptionRaw) || !is_string($priorityRaw)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => ['Некоректний формат даних.']]);
+                exit;
+            }
 
-        if (mb_strlen(trim($subject)) < 3) {
-            $errors[] = "Назва має містити не менше 3 символів.";
-        }
-        if (mb_strlen($description) < 15) {
-            $errors[] = "Опис має містити не менше 15 символів.";
-        }
-        if (!in_array($priority, ['high', 'medium', 'low'])) {
-            $errors[] = "Недопустимий рівень пріоритету.";
-        }
-        if (!empty($errors)) {
-            http_response_code(400);
-            echo json_encode(['success' => false, 'errors' => $errors]);
-            exit;
-        }
-        try {
+            $subject = trim($subjectRaw);
+            $description = trim($descriptionRaw);
+            $priority = $priorityRaw;
+            $slaHours = isset($_POST['sla_hours']) ? (int)$_POST['sla_hours'] : 24;
+
+            $errors = [];
+            if (mb_strlen($subject) < 3) $errors[] = "Назва має містити не менше 3 символів.";
+            if (mb_strlen($description) < 15 || mb_strlen($description) > 500) $errors[] = "Опис має бути від 15 до 500 символів.";
+            if (!in_array($priority, ['high', 'medium', 'low'])) $errors[] = "Недопустимий рівень пріоритету.";
+            if ($priority === 'high' && ($slaHours < 1 || $slaHours > 72)) $errors[] = "SLA має бути в межах від 1 до 72 годин.";
+
+            if (!empty($errors)) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'errors' => $errors]);
+                exit;
+            }
+            
             if ($priority === 'high') {
                 $ticket = new UrgentTicket($subject, $priority, 'open', $description, $slaHours, 'now');
             } else {
                 $ticket = new Ticket($subject, $priority, 'open', $description, 'now');
             }
+            
             $manager->addTicket($ticket);
+            
             http_response_code(201);
             echo json_encode(['success' => true, 'message' => 'Тікет успішно створено!']);
-        } catch (Exception $e) {
-            http_response_code(500);
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
         }
+    } else {
+        http_response_code(405);
+        echo json_encode(['error' => 'Метод не дозволено.']);
     }
-} else {
-    http_response_code(405);
-    echo json_encode(['error' => 'Метод не дозволено.']);
+} catch (Throwable $e) {
+    error_log("API Error: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['success' => false, 'error' => 'Внутрішня помилка сервера. Спробуйте пізніше.']);
 }

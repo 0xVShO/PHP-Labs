@@ -39,6 +39,15 @@ if (descInput) {
     });
 }
 
+function escapeHtml(unsafe) {
+    return (unsafe || '').toString()
+         .replace(/&/g, "&amp;")
+         .replace(/</g, "&lt;")
+         .replace(/>/g, "&gt;")
+         .replace(/"/g, "&quot;")
+         .replace(/'/g, "&#039;");
+}
+
 function formatStatus(status) {
     switch(status) {
         case 'open': return '<span style="color: green; font-weight: bold;">Відкритий</span>';
@@ -92,7 +101,9 @@ function loadTickets(query = '') {
                 if (ticket.status === 'closed') closed++;
                 
                 let slaWarningHtml = ticket.is_overdue ? '<div class="sla-warning"><b>Увага:</b> SLA прострочено!</div>' : '';
-                let descriptionText = (ticket.description || '').replace(/\n/g, '<br>');
+                let safeSubject = escapeHtml(ticket.subject);
+                let safeDescription = escapeHtml(ticket.description).replace(/\n/g, '<br>');
+                let slaText = ticket.sla_hours ? ` | SLA: ${ticket.sla_hours} год.` : '';
                 
                 html += `
                     <div class="ticket-card">
@@ -102,10 +113,13 @@ function loadTickets(query = '') {
                         </div>
                         <div class="ticket-status">${formatStatus(ticket.status)}</div>
                         ${getPriorityBadge(ticket.priority)}
-                        <div class="ticket-info" style="margin-top: 15px; margin-bottom: 15px;">
-                            <strong>${ticket.subject}</strong><br><br>
-                            ${descriptionText}
+                        
+                        <div class="ticket-info" style="margin-top: 15px; margin-bottom: 15px; line-height: 1.6;">
+                            Тема: ${safeSubject}<br>
+                            Опис: ${safeDescription}<br>
+                            Дата створення: ${ticket.created_at || 'Невідомо'}${slaText}
                         </div>
+                        
                         ${slaWarningHtml}
                         <form class="status-update-form">
                             <select class="status-select" onchange="updateTicketStatus(${ticket.id}, this.value)">
