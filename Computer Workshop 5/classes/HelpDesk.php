@@ -93,5 +93,22 @@ class HelpDesk {
 
         return $tickets;
     }
+
+    public function searchByStatus(string $query): array {
+        $stmt = $this->pdo->prepare("SELECT * FROM tickets WHERE status LIKE :query");
+        $stmt->execute(['query' => $query . '%']);
+        $rows = $stmt->fetchAll();
+    
+        $tickets = [];
+        foreach ($rows as $row) {
+            if ((int)$row['is_urgent'] === 1) {
+                $tickets[] = new UrgentTicket($row['subject'], $row['priority'], $row['status'], $row['description'], (int)$row['sla_hours'], $row['created_at'], $row['id']);
+            } else {
+                $tickets[] = new Ticket($row['subject'], $row['priority'], $row['status'], $row['description'], $row['created_at'], $row['id']);
+            }
+        }
+        
+        return $tickets;
+    }
 }
 ?>

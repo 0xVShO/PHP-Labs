@@ -22,7 +22,8 @@ try {
     $stmt->execute([':id' => $ticketId]);
 
     echo json_encode(['success' => true]);
-} catch (PDOException $e) {
+} catch (Throwable $e) {
+    error_log("Delete Error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+    echo json_encode(['success' => false, 'error' => 'Помилка сервера під час видалення.']);
 }

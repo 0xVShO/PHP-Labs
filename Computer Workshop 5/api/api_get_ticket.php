@@ -22,7 +22,8 @@ try {
         http_response_code(404);
         echo json_encode(['error' => 'Тікет не знайдено.']);
     }
-} catch (PDOException $e) {
+} catch (Throwable $e) {
+    error_log("Get Ticket Error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Помилка БД: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Помилка сервера при отриманні тікета.']);
 }

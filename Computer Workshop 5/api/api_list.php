@@ -9,17 +9,15 @@ header('Content-Type: application/json; charset=utf-8');
 
 try {
     $manager = new HelpDesk($pdo);
-    $statusFilter =$_GET['status'] ?? '';
+    $statusFilter = $_GET['status'] ?? '';
     
-    if ($statusFilter === 'open') {
-        $tickets =$manager->openTickets();
-    } elseif ($statusFilter === 'closed') {
-        $tickets =$manager->closedTickets();
-    } elseif ($statusFilter === 'in_progress') {
-        $tickets =$manager->inProgressTickets();
+    if (is_string($statusFilter) && $statusFilter !== '') {
+        $tickets = $manager->searchByStatus($statusFilter);
     } else {
-        $tickets = array_merge($manager->findByPriority('high'),
-            $manager->findByPriority('medium'),$manager->findByPriority('low')
+        $tickets = array_merge(
+            $manager->findByPriority('high'),
+            $manager->findByPriority('medium'),
+            $manager->findByPriority('low')
         );
     }
 
@@ -31,14 +29,15 @@ try {
             'status' => $t->getStatus(),
             'description' => $t->getDescription(),
             'is_urgent' => method_exists($t, 'getSlaHours'),
-            'sla_hours' => method_exists($t, 'getSlaHours') ?$t->getSlaHours() : null,
+            'sla_hours' => method_exists($t, 'getSlaHours') ? $t->getSlaHours() : null,
             'created_at' => $t->getCreatedAt()->format('Y-m-d H:i:s'),
             'is_overdue' => isOverdue($t)
         ];
     }, $tickets);
 
     echo json_encode($response, JSON_UNESCAPED_UNICODE);
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    error_log("API List Error: " . $e->getMessage());
     http_response_code(500);
-    echo json_encode(['error' => 'Помилка сервера: ' . $e->getMessage()]);
+    echo json_encode(['error' => 'Помилка сервера при завантаженні списку.']);
 }
