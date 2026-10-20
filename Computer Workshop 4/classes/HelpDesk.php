@@ -93,5 +93,15 @@ class HelpDesk {
 
         return $tickets;
     }
+
+    public function updateStatus(int $id, string $status): void {
+        $stmt = $this->pdo->prepare("UPDATE tickets SET status = :status WHERE id = :id");
+        $stmt->execute([':status' => $status, ':id' => $id]);
+    }
+
+    public function deleteTicket(int $id): void {
+        $stmt = $this->pdo->prepare("DELETE FROM tickets WHERE id = :id");
+        $stmt->execute([':id' => $id]);
+    }
 }
 ?>

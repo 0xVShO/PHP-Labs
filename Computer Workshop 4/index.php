@@ -18,8 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $newStatus = $_POST['status'];
             
             if (in_array($newStatus, ['open', 'in_progress', 'closed'])) {
-                $stmt = $pdo->prepare("UPDATE tickets SET status = :status WHERE id = :id");
-                $stmt->execute([':status' => $newStatus, ':id' => $ticketId]);
+                $manager->updateStatus($ticketId, $newStatus);
             }
             header("Location: index.php");
             exit;
@@ -27,8 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($_POST['action'] === 'delete') {
             $ticketId = (int)$_POST['ticket_id'];
-            $stmt = $pdo->prepare("DELETE FROM tickets WHERE id = :id");
-            $stmt->execute([':id' => $ticketId]);
+            $manager->deleteTicket($ticketId);
             header("Location: index.php");
             exit;
         }
