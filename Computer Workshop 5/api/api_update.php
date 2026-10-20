@@ -1,5 +1,6 @@
 <?php
 require_once '../db.php';
+require_once '../classes/HelpDesk.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -40,15 +41,8 @@ if (!empty($errors)) {
 }
 
 try {
-    $stmt = $pdo->prepare("UPDATE tickets SET subject = :sub, description = :desc, priority = :pri, is_urgent = :is_urg, sla_hours = :sla WHERE id = :id");
-    $stmt->execute([
-        ':sub' => $subject,
-        ':desc' => $description,
-        ':pri' => $priority,
-        ':is_urg' => $isUrgent,
-        ':sla' => $sla,
-        ':id' => $id
-    ]);
+    $manager = new HelpDesk($pdo);
+    $manager->updateTicket($id, $subject, $description, $priority, $isUrgent, $sla);
 
     echo json_encode(['success' => true]);
 } catch (Throwable $e) {

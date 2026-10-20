@@ -1,5 +1,6 @@
 <?php
 require_once '../db.php';
+require_once '../classes/HelpDesk.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -18,8 +19,8 @@ if ($ticketId <= 0) {
 }
 
 try {
-    $stmt = $pdo->prepare("DELETE FROM tickets WHERE id = :id");
-    $stmt->execute([':id' => $ticketId]);
+    $manager = new HelpDesk($pdo);
+    $manager->deleteTicket($ticketId);
 
     echo json_encode(['success' => true]);
 } catch (Throwable $e) {

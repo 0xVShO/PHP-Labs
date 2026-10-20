@@ -1,5 +1,6 @@
 <?php
 require_once '../db.php';
+require_once '../classes/HelpDesk.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -12,9 +13,8 @@ if ($id <= 0) {
 }
 
 try {
-    $stmt = $pdo->prepare("SELECT id, subject, description, priority, sla_hours FROM tickets WHERE id = :id");
-    $stmt->execute([':id' => $id]);
-    $ticket = $stmt->fetch(PDO::FETCH_ASSOC);
+    $manager = new HelpDesk($pdo);
+    $ticket = $manager->getTicketById($id);
 
     if ($ticket) {
         echo json_encode($ticket);

@@ -1,5 +1,6 @@
 <?php
 require_once '../db.php';
+require_once '../classes/HelpDesk.php';
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -19,8 +20,8 @@ if ($ticketId <= 0 || !is_string($newStatus) || !in_array($newStatus, ['open', '
 }
 
 try {
-    $stmt = $pdo->prepare("UPDATE tickets SET status = :status WHERE id = :id");
-    $stmt->execute([':status' => $newStatus, ':id' => $ticketId]);
+    $manager = new HelpDesk($pdo);
+    $manager->updateStatus($ticketId, $newStatus);
 
     echo json_encode(['success' => true]);
 } catch (Throwable $e) {
